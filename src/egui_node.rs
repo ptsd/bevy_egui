@@ -22,6 +22,7 @@ use bevy::{
             VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
+        sync_world::MainEntity,
         texture::{
             GpuImage, Image, ImageAddressMode, ImageFilterMode, ImageSampler,
             ImageSamplerDescriptor,
@@ -193,6 +194,7 @@ pub(crate) struct EguiDraw {
 /// Egui render node.
 pub struct EguiNode {
     window_entity: Entity,
+    main_world_entity: Option<Entity>,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -209,6 +211,7 @@ impl EguiNode {
     pub fn new(window_entity: Entity) -> Self {
         EguiNode {
             window_entity,
+            main_world_entity: None,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -232,11 +235,24 @@ impl Node for EguiNode {
             return;
         };
 
+        if self.main_world_entity.is_none() {
+            for (entity, main_entity) in world.query::<(Entity, &MainEntity)>().iter(world) {
+                if main_entity.id() == self.window_entity {
+                    self.main_world_entity = Some(entity.clone());
+                    break;
+                }
+            }
+        }
+
+        let Some(found_main_entity) = self.main_world_entity else {
+            return;
+        };
+
         let mut render_target_query =
             world.query::<(&EguiSettings, &RenderTargetSize, &mut EguiRenderOutput)>();
 
         let Ok((egui_settings, window_size, mut render_output)) =
-            render_target_query.get_mut(world, self.window_entity)
+            render_target_query.get_mut(world, found_main_entity)
         else {
             return;
         };
@@ -398,6 +414,10 @@ impl Node for EguiNode {
                 Some(window) => window,
             };
 
+        let Some(found_main_entity) = self.main_world_entity else {
+            return Ok(());
+        };
+
         let render_queue = world.get_resource::<RenderQueue>().unwrap();
 
         let (vertex_buffer, index_buffer) = match (&self.vertex_buffer, &self.index_buffer) {
@@ -472,7 +492,7 @@ impl Node for EguiNode {
             return Ok(());
         };
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.window_entity];
+        let transform_buffer_offset = egui_transforms.offsets[&found_main_entity];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
 
         let mut requires_reset = true;

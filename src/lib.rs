@@ -124,6 +124,7 @@ use bevy::{
         With, Without,
     },
     reflect::Reflect,
+    winit::cursor::CursorIcon,
     window::{PrimaryWindow, Window},
 };
 #[cfg(all(
@@ -605,8 +606,7 @@ impl EguiUserTextures {
 }
 
 /// Stores physical size and scale factor, is used as a helper to calculate logical size.
-#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "render", derive(ExtractComponent))]
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq, ExtractComponent)]
 pub struct RenderTargetSize {
     /// Physical width
     pub physical_width: f32,
@@ -871,6 +871,8 @@ pub struct EguiContextQuery {
     pub render_target_size: &'static mut RenderTargetSize,
     /// [`Window`] component, when rendering to a window.
     pub window: Option<&'static mut Window>,
+    /// Cursor for the
+    pub cursor: Option<&'static mut CursorIcon>,
     /// [`EguiRenderToTextureHandle`] component, when rendering to a texture.
     #[cfg(feature = "render")]
     pub render_to_texture: Option<&'static mut EguiRenderToTextureHandle>,
