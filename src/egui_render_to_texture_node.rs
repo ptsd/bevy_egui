@@ -18,6 +18,7 @@ use bevy::{
             PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
+        sync_world::MainEntity,
         texture::GpuImage,
     },
 };
@@ -35,6 +36,7 @@ pub struct EguiRenderToTexturePass {
 /// Egui render to texture node.
 pub struct EguiRenderToTextureNode {
     render_to_texture_target: Entity,
+    main_world_entity: Option<Entity>,
     vertex_data: Vec<u8>,
     vertex_buffer_capacity: usize,
     vertex_buffer: Option<Buffer>,
@@ -50,6 +52,7 @@ impl EguiRenderToTextureNode {
     pub fn new(render_to_texture_target: Entity) -> Self {
         EguiRenderToTextureNode {
             render_to_texture_target,
+            main_world_entity: None,
             draw_commands: Vec::new(),
             vertex_data: Vec::new(),
             vertex_buffer_capacity: 0,
@@ -64,9 +67,22 @@ impl EguiRenderToTextureNode {
 }
 impl Node for EguiRenderToTextureNode {
     fn update(&mut self, world: &mut World) {
+        if self.main_world_entity.is_none() {
+            for (x, y) in world.query::<(Entity, &MainEntity)>().iter(world) {
+                if y.id().eq(&self.render_to_texture_target) {
+                    self.main_world_entity = Some(x.clone());
+                    break;
+                }
+            }
+        }
+
+        let Some(main_entity) = self.main_world_entity else {
+            return;
+        };
+
         let Ok(image_handle) = world
             .query::<&EguiRenderToTextureHandle>()
-            .get(world, self.render_to_texture_target)
+            .get(world, main_entity)
             .map(|handle| handle.0.clone_weak())
         else {
             return;
@@ -82,7 +98,7 @@ impl Node for EguiRenderToTextureNode {
         let mut render_target_query =
             world.query::<(&EguiSettings, &RenderTargetSize, &mut EguiRenderOutput)>();
         let Ok((egui_settings, render_target_size, mut render_output)) =
-            render_target_query.get_mut(world, self.render_to_texture_target)
+            render_target_query.get_mut(world, main_entity)
         else {
             return;
         };
@@ -235,11 +251,15 @@ impl Node for EguiRenderToTextureNode {
         render_context: &mut RenderContext<'w>,
         world: &'w World,
     ) -> Result<(), NodeRunError> {
+        let Some(main_entity) = self.main_world_entity else {
+            return Ok(());
+        };
+
         let egui_pipelines = &world.get_resource::<EguiPipelines>().unwrap().0;
         let pipeline_cache = world.get_resource::<PipelineCache>().unwrap();
 
         let extracted_render_to_texture: Option<&EguiRenderToTextureHandle> =
-            world.get(self.render_to_texture_target);
+            world.get(main_entity);
         let Some(render_to_texture_gpu_image) = extracted_render_to_texture else {
             return Ok(());
         };
@@ -306,7 +326,7 @@ impl Node for EguiRenderToTextureNode {
 
         let mut render_pass = TrackedRenderPass::new(device, render_pass);
 
-        let Some(pipeline_id) = egui_pipelines.get(&self.render_to_texture_target) else {
+        let Some(pipeline_id) = egui_pipelines.get(&main_entity) else {
             bevy::log::error!("no egui_pipeline");
             return Ok(());
         };
@@ -314,7 +334,7 @@ impl Node for EguiRenderToTextureNode {
             return Ok(());
         };
 
-        let transform_buffer_offset = egui_transforms.offsets[&self.render_to_texture_target];
+        let transform_buffer_offset = egui_transforms.offsets[&main_entity];
         let transform_buffer_bind_group = &egui_transforms.bind_group.as_ref().unwrap().1;
 
         let mut requires_reset = true;
