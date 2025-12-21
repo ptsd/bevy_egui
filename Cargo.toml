@@ -89,7 +89,7 @@ bevy_app = { version = "0.18.0-rc.1" }
 bevy_camera = { version = "0.18.0-rc.1" }
 bevy_derive = { version = "0.18.0-rc.1" }
 bevy_ecs = { version = "0.18.0-rc.1" }
-bevy_input = { version = "0.18.0-rc.1" }
+bevy_input = { version = "0.18.0-rc.1", features = ["gamepad"] }
 bevy_log = { version = "0.18.0-rc.1" }
 bevy_math = { version = "0.18.0-rc.1" }
 bevy_platform = { version = "0.18.0-rc.1" }
